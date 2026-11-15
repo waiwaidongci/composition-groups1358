@@ -18,5 +18,12 @@ def analyze_composition(snapshot,delta=.001,permutations=199,seed=2026):
     rows=[{"sample":s,"raw":T['raw'][i],"closed":T['closed'][i],"replaced":T['replaced'][i],"clr":T['clr'][i],"zero_count":T['zero_counts'][i]} for i,s in enumerate(samples)]
     for group in stats['groups']:
         ix=[i for i,g in enumerate(labels) if g==group['group']];group['mean_replaced']=np.mean(np.asarray(T['replaced'])[ix],axis=0).tolist()
-    canonical={"study":snapshot['study'],"components":components,"samples":samples}
-    return {"algorithm_version":VERSION,"study":snapshot['study'],"components":components,"transformed":rows,"statistics":stats,"delta":float(delta),"seed":seed,"permutations":permutations,"zero_rows":sum(z>0 for z in T['zero_counts']),"input_snapshot":canonical,"input_hash":fingerprint({"version":VERSION,"snapshot":canonical,"delta":delta,"B":permutations,"seed":seed}),"replacement_note":T['replacement_note'],"assumptions":"独立样本且组标签在零假设下可交换；固定各组样本数。组差可受组内离散度影响，仅报告到组CLR质心距离描述，未正式检验离散度同质；不能把差异解释为工艺原因。","interpretation":"Aitchison距离等于CLR欧氏距离。固定自由度下R²与pseudo-F单调等价；SSW=0时R²=1、F无界但R²置换仍可计算。δ是显式假设，零替换可能影响结论。"}
+    canonical={"study":snapshot['study'],"phase_version":snapshot.get('phase_version'),
+               "components":components,"samples":samples}
+    return {"algorithm_version":VERSION,"study":snapshot['study'],
+            "phase_version":snapshot.get('phase_version'),"components":components,
+            "transformed":rows,"statistics":stats,"delta":float(delta),"seed":seed,
+            "permutations":permutations,"zero_rows":sum(z>0 for z in T['zero_counts']),
+            "input_snapshot":canonical,
+            "input_hash":fingerprint({"version":VERSION,"snapshot":canonical,"delta":delta,"B":permutations,"seed":seed}),
+            "replacement_note":T['replacement_note'],"assumptions":"独立样本且组标签在零假设下可交换；固定各组样本数。组差可受组内离散度影响，仅报告到组CLR质心距离描述，未正式检验离散度同质；不能把差异解释为工艺原因。","interpretation":"Aitchison距离等于CLR欧氏距离。固定自由度下R²与pseudo-F单调等价；SSW=0时R²=1、F无界但R²置换仍可计算。δ是显式假设，零替换可能影响结论。"}

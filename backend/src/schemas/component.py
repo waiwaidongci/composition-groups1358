@@ -7,3 +7,4 @@ class ComponentOutput(BaseModel):
     unit:str
     position:int
     meaning:str
+    version_id:int|None=None

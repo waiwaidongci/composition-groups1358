@@ -12,3 +12,6 @@ class StudyOutput(BaseModel):
     zero_rows:int
     supported:bool
     reason:str
+    active_version:dict|None=None
+    version_count:int=0
+    migration_in_progress:int=0

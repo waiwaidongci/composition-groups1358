@@ -15,4 +15,5 @@ class CompositionRun(Base):
     result:Mapped[dict]=mapped_column(JSON,default=dict)
     error:Mapped[str]=mapped_column(Text,default="")
     owner:Mapped[str]=mapped_column(String(100))
+    phase_version_id:Mapped[int|None]=mapped_column(ForeignKey("phase_versions.id"),nullable=True)
     created_at:Mapped[str]=mapped_column(String(64),default=now)

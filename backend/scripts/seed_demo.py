@@ -1,10 +1,15 @@
 import json
 import numpy as np
 from src.config.database import Base,engine,SessionLocal
-from src.models import User,CompositionStudy,ComponentSpec,CompositionSample,CompositionRun,ResampleNote
+from src.models import User,CompositionStudy,ComponentSpec,CompositionSample,CompositionRun,ResampleNote,PhaseVersion
 from src.utils.security import hash_password
 from src.services.study_service import create_snapshot
 from src.services.analysis_service import analyze_composition
+from src.services.phase_service import ensure_base_version,create_migration,upsert_entries
+from src.schemas.phase import MigrationInput,NewComponent,SplitBatchInput,SplitEntryInput
+
+class _Actor:
+    def __init__(self,name,email):self.name=name;self.email=email
 
 def seed():
     Base.metadata.create_all(engine)
@@ -29,8 +34,16 @@ def seed():
                 for i,row in enumerate(X):
                     sc=f'{code}-{gi+1}-{i+1:02}'
                     if not db.query(CompositionSample).filter_by(study_id=study.id,code=sc).first():db.add(CompositionSample(study_id=study.id,code=sc,group=group,values={c:float(v) for (c,_),v in zip(specs,row)},note='合成独立样本；组成差异不证明工艺原因，零替换假设须保留。'))
-            db.flush();studies.append(study)
+            db.flush();ensure_base_version(db,study);db.flush();studies.append(study)
         if not db.query(CompositionRun).filter_by(name='正组成三工艺 · 199次基线').first():
-            study=studies[0];snapshot=create_snapshot(db,study);result=analyze_composition(snapshot,.001,199,2026);run=CompositionRun(name='正组成三工艺 · 199次基线',study_id=study.id,delta=.001,permutations=199,seed=2026,input_snapshot=snapshot,status='completed',result=result,owner='顾砚 · 组成研究员');db.add(run);db.flush();db.add(ResampleNote(run_id=run.id,title='首批三工艺复配补样说明',interpretation='CLR组间差异可能受离散度影响，未正式检验同质；零替换为显式假设，不能推断工艺原因。',proposal='独立补取每工艺同规模样本，复核五相通道和检出限，保留组成闭合前后记录。',status='approved',owner='顾砚 · 组成研究员',reviewer='罗岑 · 材料负责人',review_note='批准研究归档和独立补样，不把全局差异当成工艺因果或同质性证明。'))
-        db.commit();print(json.dumps({m.__tablename__:db.query(m).count() for m in [User,CompositionStudy,ComponentSpec,CompositionSample,CompositionRun,ResampleNote]},ensure_ascii=False))
+            study=studies[0];snapshot=create_snapshot(db,study);result=analyze_composition(snapshot,.001,199,2026);run=CompositionRun(name='正组成三工艺 · 199次基线',study_id=study.id,phase_version_id=snapshot['phase_version']['id'],delta=.001,permutations=199,seed=2026,input_snapshot=snapshot,status='completed',result=result,owner='顾砚 · 组成研究员');db.add(run);db.flush();db.add(ResampleNote(run_id=run.id,title='首批三工艺复配补样说明',interpretation='CLR组间差异可能受离散度影响，未正式检验同质；零替换为显式假设，不能推断工艺原因。',proposal='独立补取每工艺同规模样本，复核五相通道和检出限，保留组成闭合前后记录。',status='approved',owner='顾砚 · 组成研究员',reviewer='罗岑 · 材料负责人',review_note='批准研究归档和独立补样，不把全局差异当成工艺因果或同质性证明。'))
+        # 演示一次可中断的相通道迁移：LS-02 其余相拆为有机相/残余相，仅补录前 7 个样本。
+        if not db.query(PhaseVersion).filter_by(study_id=studies[1].id,version=2).first():
+            analyst=_Actor('顾砚 · 组成研究员','analyst@lisui.demo')
+            migration=create_migration(db,studies[1].id,MigrationInput(label='其余相拆为有机相与残余相',split_code='other',
+                new_components=[NewComponent(code='organic',label='有机相'),NewComponent(code='residual',label='残余相')]),analyst)
+            partial=[SplitEntryInput(sample_code=e['sample_code'],values={'organic':e['expected_value']*.45,'residual':e['expected_value']*.55})
+                     for e in migration['entries'][:7]]
+            upsert_entries(db,migration['id'],SplitBatchInput(entries=partial),analyst)
+        db.commit();print(json.dumps({m.__tablename__:db.query(m).count() for m in [User,CompositionStudy,ComponentSpec,CompositionSample,CompositionRun,ResampleNote,PhaseVersion]},ensure_ascii=False))
 if __name__=='__main__':seed()

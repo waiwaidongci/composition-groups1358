@@ -7,13 +7,19 @@ from sqlalchemy import text
 from .config.database import Base,engine
 from .config.settings import SEED_DEMO
 from . import models
-from .routes import auth,studies,samples,components,runs,notes,audits
+from .routes import auth,studies,samples,components,runs,notes,audits,phases
 from .middlewares.errors import ErrorMiddleware
 from .middlewares.rate_limit import RateLimitMiddleware
 from .services.run_service import queue
 @asynccontextmanager
 async def lifespan(app):
     Base.metadata.create_all(engine)
+    from .services.phase_service import backfill_versions,ensure_upgrade_columns
+    from .config.database import SessionLocal
+    try:
+        ensure_upgrade_columns(engine)
+        with SessionLocal() as db:backfill_versions(db)
+    except Exception:logging.exception("phase version backfill failed")
     if SEED_DEMO:
         try:
             from scripts.seed_demo import seed
@@ -26,7 +32,7 @@ async def validation_error(request,exc):
     details=[{"loc":[str(v) for v in e["loc"]],"msg":e["msg"]} for e in exc.errors()]
     return JSONResponse(status_code=422,content={"detail":"；".join("/".join(e["loc"])+": "+e["msg"] for e in details)})
 app.add_middleware(ErrorMiddleware);app.add_middleware(RateLimitMiddleware)
-for module in [auth,studies,samples,components,runs,notes,audits]:app.include_router(module.router)
+for module in [auth,studies,samples,components,runs,notes,audits,phases]:app.include_router(module.router)
 @app.get("/health")
 def health():
     with engine.connect() as c:c.execute(text("select 1"))

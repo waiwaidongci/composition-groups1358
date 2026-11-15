@@ -1,1 +1,1 @@
-import {request} from './client';import {Component} from '../types/domain';export const getComponents=(id:number)=>request<Component[]>(`/studies/${id}/components`);
+import {request} from './client';import {Component} from '../types/domain';export const getComponents=(id:number,versionId?:number)=>request<Component[]>(`/studies/${id}/components`+(versionId?`?version_id=${versionId}`:''));
